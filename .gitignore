@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+.venv
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyd
+*.pyo
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# VS Code
+.vscode/
+
+# IDEs
+.idea/
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+
+# AWS CLI credentials (do not commit)
+.aws/credentials
+.aws/config
+
+# Local env files
+.env
+.env.local
+.env.*
+
+# macOS
+.DS_Store
+
+# Logs and archives
+*.log
+*.zip
+
+# pytest
+.pytest_cache/
+
+# other
+coverage.xml
+
+# Keep docs and source tracked
+/docs/
+lambda/
+terraform/
+
