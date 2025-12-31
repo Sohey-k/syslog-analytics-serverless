@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juniper Syslog Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-card.critical .stat-value {
+            color: #dc3545;
+        }
+
+        .stat-card.warning .stat-value {
+            color: #ffc107;
+        }
+
+        .stat-card.total .stat-value {
+            color: #667eea;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        .chart-wrapper.small {
+            height: 350px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: white;
+        }
+
+        .error {
+            background: #dc3545;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .controls label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls input {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .controls input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .controls button {
+            padding: 10px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .controls button:hover {
+            background: #5568d3;
+        }
+
+        .controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Juniper Syslog Analytics Dashboard</h1>
+            <p class="subtitle">AWS Serverless Architecture (S3 → Lambda → DynamoDB)</p>
+        </header>
+
+        <div class="controls">
+            <label for="logDate">📅 ログ日付:</label>
+            <input type="date" id="logDate" value="2025-04-28">
+            <button id="loadButton" onclick="loadData()">🔄 データ読み込み</button>
+            <span id="lastUpdated" style="margin-left: auto; color: #666;"></span>
+        </div>
+
+        <div id="errorMessage"></div>
+        <div id="loadingMessage" class="loading">データを読み込んでいます...</div>
+
+        <div id="statsContainer" class="stats-container" style="display: none;">
+            <div class="stat-card critical">
+                <div class="stat-label">🔴 CRITICAL</div>
+                <div class="stat-value" id="criticalCount">0</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-label">🟡 WARNING</div>
+                <div class="stat-value" id="warningCount">0</div>
+            </div>
+            <div class="stat-card total">
+                <div class="stat-label">📈 合計</div>
+                <div class="stat-value" id="totalCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">📊 平均/時</div>
+                <div class="stat-value" id="avgPerHour">0</div>
+            </div>
+        </div>
+
+        <div id="chartsGrid" class="charts-grid" style="display: none;">
+            <div class="chart-container full-width">
+                <h3 class="chart-title">📈 時間別 CRITICAL/WARNING 推移</h3>
+                <div class="chart-wrapper">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">🍩 CRITICAL/WARNING 比率</h3>
+                <div class="chart-wrapper small">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">📊 時間別合計</h3>
+                <div class="chart-wrapper small">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by AWS (S3 + Lambda + DynamoDB) | Visualized with Chart.js</p>
+            <p>Phase 1 Complete ✅ | Monthly Cost: $0 🎉</p>
+        </footer>
+    </div>
+
+    <script>
+        // S3 JSON データのベース URL (S3 Website エンドポイント)
+        const S3_BASE_URL = 'http://syslog-output-235270183100.s3-website-ap-northeast-1.amazonaws.com/data';
+
+        let lineChart, donutChart, barChart;
+
+        // ページ読み込み時に自動でデータ取得
+        window.addEventListener('DOMContentLoaded', () => {
+            loadData();
+        });
+
+        async function loadData() {
+            const logDate = document.getElementById('logDate').value;
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const statsContainer = document.getElementById('statsContainer');
+            const chartsGrid = document.getElementById('chartsGrid');
+            const loadButton = document.getElementById('loadButton');
+
+            // UI リセット
+            loadingMessage.style.display = 'block';
+            errorMessage.innerHTML = '';
+            statsContainer.style.display = 'none';
+            chartsGrid.style.display = 'none';
+            loadButton.disabled = true;
+
+            try {
+                // S3 から JSON 取得
+                const jsonUrl = `${S3_BASE_URL}/${logDate}.json`;
+                console.log(`Fetching: ${jsonUrl}`);
+
+                const response = await fetch(jsonUrl);
+
+                if (!response.ok) {
+                    throw new Error(`${logDate} のデータが見つかりません。別の日付を選択してください。`);
+                }
+
+                const data = await response.json();
+
+                if (!data.hourly_stats || data.hourly_stats.length === 0) {
+                    throw new Error(`${logDate} のデータが空です。`);
+                }
+
+                // データ整形
+                const hourlyData = processData(data.hourly_stats);
+
+                // 統計情報更新
+                updateStats(hourlyData);
+
+                // グラフ描画
+                renderCharts(hourlyData);
+
+                // UI 表示
+                loadingMessage.style.display = 'none';
+                statsContainer.style.display = 'grid';
+                chartsGrid.style.display = 'grid';
+
+                // 最終更新時刻
+                document.getElementById('lastUpdated').textContent =
+                    `最終更新: ${new Date(data.processed_at).toLocaleString('ja-JP')}`;
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                loadingMessage.style.display = 'none';
+                errorMessage.innerHTML = `
+                    <div class="error">
+                        ❌ エラー: ${error.message}<br>
+                        <small>S3 にデータがアップロードされているか確認してください</small>
+                    </div>
+                `;
+            } finally {
+                loadButton.disabled = false;
+            }
+        }
+
+        function processData(hourlyStats) {
+            const hourlyData = {
+                labels: [],
+                critical: [],
+                warning: [],
+                total: []
+            };
+
+            hourlyStats.forEach(item => {
+                hourlyData.labels.push(item.hour);
+                hourlyData.critical.push(item.critical);
+                hourlyData.warning.push(item.warning);
+                hourlyData.total.push(item.total);
+            });
+
+            return hourlyData;
+        }
+
+        function updateStats(hourlyData) {
+            const totalCritical = hourlyData.critical.reduce((sum, val) => sum + val, 0);
+            const totalWarning = hourlyData.warning.reduce((sum, val) => sum + val, 0);
+            const total = totalCritical + totalWarning;
+            const avgPerHour = Math.round(total / hourlyData.labels.length);
+
+            document.getElementById('criticalCount').textContent = totalCritical.toLocaleString();
+            document.getElementById('warningCount').textContent = totalWarning.toLocaleString();
+            document.getElementById('totalCount').textContent = total.toLocaleString();
+            document.getElementById('avgPerHour').textContent = avgPerHour.toLocaleString();
+        }
+
+        function renderCharts(hourlyData) {
+            // 既存のグラフを破棄
+            if (lineChart) lineChart.destroy();
+            if (donutChart) donutChart.destroy();
+            if (barChart) barChart.destroy();
+
+            // 折れ線グラフ: 時間別推移
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: hourlyData.labels,
+                    datasets: [
+                        {
+                            label: 'CRITICAL',
+                            data: hourlyData.critical,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'WARNING',
+                            data: hourlyData.warning,
+                            borderColor: '#ffc107',
+                            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ドーナツチャート: CRITICAL/WARNING 比率
+            const totalCritical = hourlyData.critical.reduce((sum, val) => sum + val, 0);
+            const totalWarning = hourlyData.warning.reduce((sum, val) => sum + val, 0);
+
+            const donutCtx = document.getElementById('donutChart').getContext('2d');
+            donutChart = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['CRITICAL', 'WARNING'],
+                    datasets: [{
+                        data: [totalCritical, totalWarning],
+                        backgroundColor: ['#dc3545', '#ffc107'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = totalCritical + totalWarning;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 棒グラフ: 時間別合計
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: hourlyData.labels,
+                    datasets: [{
+                        label: '合計ログ数',
+                        data: hourlyData.total,
+                        backgroundColor: '#667eea',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
