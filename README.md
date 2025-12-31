@@ -168,17 +168,18 @@ S3 アップロード → Lambda 起動 → DynamoDB 書き込み
    - 設計書を参照しながらTerraform/Lambda/Testsを生成
    - → 従来の3倍速（実装2時間で完了）
 
-3. **品質保証（人間 + Claude）**
-   - コードレビュー、E2Eテスト、パフォーマンス検証
-   - → 最終判断は人間が行う
+3. **学習・検証（人間 + Claude）**
+   - AIに質問しながらコードの意図を理解
+   - E2Eテスト実行と結果の解釈をAIと対話
+   - → わからないことはすぐにAIに聞いて学ぶスタイル
 
 **学び：**
-> 「AIに丸投げではなく、人間が設計・判断し、AIが実装支援」
+> 「AIに質問を投げながら学ぶ - 完璧を目指さず、動くものを作りながら理解を深める」
 > 
-> これは前職での業務自動化と同じアプローチ：
-> - ネットワーク機器のSyslog手動分析（3時間/日）
-> - → Python自動化で10分に短縮（90%削減）
-> - → 今回、それをAWSサーバーレスで再実装
+> 前職での課題意識が起点：
+> - ネットワーク機器のSyslog手動分析（3時間/日）を経験
+> - 「自動化したい」という想いはあったが、当時は実装力不足
+> - → 今回、AIの力を借りてクラウドで実現
 
 ---
 
@@ -682,16 +683,6 @@ DYNAMODB_TABLE=test-table python3 -m unittest tests.test_parser -v
 
 ---
 
-### 📞 サポート連絡先
-
-上記で解決しない場合：
-1. [docs/design.md](docs/design.md) の **7. エラーハンドリング** を確認
-2. [docs/design.md](docs/design.md) の **13. 運用設計** を確認
-3. CloudWatch Logs の詳細ログを確認
-4. GitHub Issues で質問（プロジェクト公開時）
-
----
-
 ## 📊 アーキテクチャダイアグラム
 
 ```
@@ -792,16 +783,6 @@ sequenceDiagram
 3. **Parse (Step 6-9)**: ZIP 展開 → CSV 読み込み → CRITICAL/WARNING フィルタ → 時間別集計
 4. **Store (Step 10-11)**: DynamoDB に 24 レコード一括書き込み (batch_writer)
 5. **Verify (Step 14-17)**: AWS CLI で結果確認 (DynamoDB query + CloudWatch Logs)
-
----
-
-## 📞 サポート
-
-問題が発生した場合：
-
-1. [docs/design.md](docs/design.md) の **7. エラーハンドリング** を確認
-2. [docs/design.md](docs/design.md) の **13. 運用設計** でトラブルシューティング
-3. CloudWatch Logs でエラーを確認
 
 ---
 
