@@ -27,9 +27,12 @@ dist/
 
 # Terraform
 .terraform/
-terraform.tfstate
-terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
 .terraform.lock.hcl
+*.zip
+plan.txt
+plan.json
 
 # AWS CLI credentials (do not commit)
 .aws/credentials
