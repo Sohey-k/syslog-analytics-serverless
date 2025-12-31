@@ -55,9 +55,3 @@ plan.json
 
 # other
 coverage.xml
-
-# Keep docs and source tracked
-/docs/
-lambda/
-terraform/
-
