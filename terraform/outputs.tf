@@ -37,3 +37,8 @@ output "cloudwatch_log_group" {
   description = "CloudWatch ログクループ"
   value       = aws_cloudwatch_log_group.lambda.name
 }
+
+output "aws_region" {
+  description = "AWS リージョン"
+  value       = var.aws_region
+}

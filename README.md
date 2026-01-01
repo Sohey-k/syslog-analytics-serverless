@@ -416,6 +416,7 @@ aws dynamodb query \
 ```bash
 # S3 Website ホスティングを有効化
 OUTPUT_BUCKET=$(cd terraform && terraform output -raw s3_output_bucket)
+AWS_REGION=$(cd terraform && terraform output -raw aws_region)
 
 aws s3 website s3://$OUTPUT_BUCKET \
   --index-document index.html
@@ -427,12 +428,32 @@ aws s3api put-bucket-policy --bucket $OUTPUT_BUCKET --policy '{
     "Effect": "Allow",
     "Principal": "*",
     "Action": "s3:GetObject",
-    "Resource": "arn:aws:s3:::'$OUTPUT_BUCKET'/data/*"
+    "Resource": "arn:aws:s3:::'$OUTPUT_BUCKET'/*"
   }]
 }'
+
+# パブリックアクセスブロック設定を無効化（静的ホスティングに必要）
+aws s3api put-public-access-block \
+  --bucket $OUTPUT_BUCKET \
+  --public-access-block-configuration \
+  "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+# ダッシュボードHTMLをS3にアップロード
+aws s3 cp dashboard/index.html s3://$OUTPUT_BUCKET/index.html \
+  --content-type "text/html"
+
+# S3 Website URLを取得して表示
+echo "🌐 ダッシュボードURL:"
+echo "http://${OUTPUT_BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
 ```
 
-**ローカルでプレビュー:**
+**ブラウザでS3のダッシュボードにアクセス:**
+
+上記コマンドで表示されたURLをブラウザで開いてください。
+
+例: `http://syslog-output-235270183100.s3-website-ap-northeast-1.amazonaws.com`
+
+**ローカルでプレビュー（開発用）:**
 
 ```bash
 # ダッシュボードをブラウザで開く
