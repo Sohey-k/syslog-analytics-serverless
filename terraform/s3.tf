@@ -105,17 +105,17 @@ resource "aws_s3_bucket_website_configuration" "output" {
   }
 }
 
-# パブリックアクセス設定（部分的に公開）
+# パブリックアクセス設定（CloudFront経由のみアクセス可能）
 resource "aws_s3_bucket_public_access_block" "output" {
   bucket = aws_s3_bucket.output.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-# バケットポリシー（index.html と data/*.json を公開）
+# バケットポリシー（CloudFront OAC からのアクセスのみ許可）
 resource "aws_s3_bucket_policy" "output" {
   bucket = aws_s3_bucket.output.id
 
@@ -123,14 +123,18 @@ resource "aws_s3_bucket_policy" "output" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource = [
-          "${aws_s3_bucket.output.arn}/index.html",
-          "${aws_s3_bucket.output.arn}/data/*.json"
-        ]
+        Sid    = "AllowCloudFrontServicePrincipal"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.output.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.output.arn
+          }
+        }
       }
     ]
   })

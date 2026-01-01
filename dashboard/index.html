@@ -220,7 +220,7 @@
 
         <div class="controls">
             <label for="logDate">📅 ログ日付:</label>
-            <input type="date" id="logDate" value="2025-04-28">
+            <input type="date" id="logDate" value="2026-01-01">
             <button id="loadButton" onclick="loadData()">🔄 データ読み込み</button>
             <span id="lastUpdated" style="margin-left: auto; color: #666;"></span>
         </div>
@@ -277,8 +277,8 @@
     </div>
 
     <script>
-        // S3 JSON データのベース URL (S3 Website エンドポイント)
-        const S3_BASE_URL = 'http://syslog-output-235270183100.s3-website-ap-northeast-1.amazonaws.com/data';
+        // データのベース URL（相対パスで CloudFront または S3 Website から取得）
+        const S3_BASE_URL = './data';
 
         let lineChart, donutChart, barChart;
 

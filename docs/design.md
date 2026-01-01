@@ -4,7 +4,7 @@
 
 **プロジェクト名:** Juniper Syslog Analytics Serverless  
 **作成日:** 2025-12-30    
-**最終更新:** 2025-12-30  
+**最終更新:** 2026-01-01 (Phase 2: CloudFront対応)  
 **対応要件定義書:** requirements.md v2.0
 
 ---
@@ -62,10 +62,26 @@
 │               ↓ (Phase 3実装)                          │
 │  ┌───────────────────────────────────────────────┐    │
 │  │  S3 Bucket: syslog-output-bucket              │    │
-│  │  ├─ dashboard/index.html                      │    │
-│  │  └─ Static Website Hosting: Enabled          │    │
-│  │     Index Document: dashboard/index.html      │    │
-│  └───────────────────────────────────────────────┘    │
+│  │  ├─ index.html (Dashboard)                    │    │
+│  │  ├─ data/YYYY-MM-DD.json (統計データ)          │    │
+│  │  └─ Public Access: BLOCKED (OAC経由のみ)      │    │
+│  │     Encryption: SSE-S3                        │    │
+│  └────────────┬──────────────────────────────────┘    │
+│               │ Origin Access Control (OAC)            │
+│               │                                         │
+│  ┌───────────▼───────────────────────────────────┐    │
+│  │  CloudFront Distribution (HTTPS)               │    │
+│  │  ┌─────────────────────────────────────────┐ │    │
+│  │  │ Domain: d1xxxxx.cloudfront.net          │ │    │
+│  │  │ SSL: CloudFront Default Certificate     │ │    │
+│  │  │ Price Class: 200 (米国,欧州,アジア)      │ │    │
+│  │  │ Cache: index.html(1h), data/*.json(5m)  │ │    │
+│  │  │ Viewer Protocol: redirect-to-https      │ │    │
+│  │  └─────────────────────────────────────────┘ │    │
+│  └────────────┬──────────────────────────────────┘    │
+│               │ HTTPS                                   │
+│               ↓                                         │
+│         [ User Browser ]                                │
 │                                                         │
 │  ┌───────────────────────────────────────────────┐    │
 │  │  CloudWatch Logs                               │    │
@@ -821,6 +837,7 @@ User → S3:
 - 1日あたり24ファイル (10MB × 24)
 - Lambda実行: 30秒/ファイル
 - DynamoDB書き込み: 24件/ファイル
+- ダッシュボードアクセス: 10回/日
 
 【Lambda】
   実行回数: 24 × 30 = 720回/月
@@ -836,11 +853,11 @@ User → S3:
   無料枠: 5GB
   → $0 ✅
   
-  PUT: 720回/月
+  PUT: 720回/月 + 30回(Lambda→Output)
   無料枠: 2,000回/月
   → $0 ✅
   
-  GET: 720回/月 (Lambda読み取り)
+  GET (Lambda): 720回/月
   無料枠: 20,000回/月
   → $0 ✅
 
@@ -850,10 +867,24 @@ User → S3:
   → $0 ✅
   
   Write: 720ファイル × 24件 = 17,280 WCU
-  無料枠: 200万 WCU/月 (25WCU/秒 × 86,400秒)
+  無料枠: 200万 WCU/月
   → $0 ✅
 
-合計: $0 / 月 🎉
+【CloudFront】🆕
+  HTTPS リクエスト: 300回/月 (10回/日 × 30日)
+  無料枠: 1,000万回/月
+  → $0 ✅
+  
+  データ転送: 15MB/月 (50KB × 300回)
+  無料枠: 50GB/月 (最初の12ヶ月)
+  → $0 ✅
+  
+  13ヶ月目以降:
+  15MB × $0.114/GB = $0.0017/月 (0.17円)
+
+合計: 
+  最初の12ヶ月: $0/月 🎉
+  13ヶ月目以降: ~$0.002/月 (0.2円)
 ```
 
 ### 10.2 コスト最適化施策
@@ -862,6 +893,8 @@ User → S3:
 - DynamoDB: オンデマンド課金（待機コストゼロ）
 - Lambda: 標準ライブラリのみ（Layer不要）
 - CloudWatch Logs: 7日保持（最小限）
+- **CloudFront: Price Class 200（日本含む、グローバル配信は不要）** 🆕
+- **S3 OAC: S3→CloudFront転送は無料** 🆕
 
 ---
 

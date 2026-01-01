@@ -1,33 +1,38 @@
 # Juniper Syslog Analytics Serverless
 
-Juniper ネットワーク機器のシステムログを AWS 上で**完全無料**で処理・分析する Serverless アーキテクチャ。
+Juniper ネットワーク機器のシステムログを AWS 上で処理・分析する Serverless アーキテクチャ（**HTTPS 配信対応**）。
 
-[![Phase 1](https://img.shields.io/badge/Phase%201-Complete-success)](https://github.com/reepoo0528/syslog-analytics-serverless)
-[![Cost](https://img.shields.io/badge/Monthly%20Cost-$0-brightgreen)](https://github.com)
+[![Phase 2](https://img.shields.io/badge/Phase%202-Complete-success)](https://github.com/reepoo0528/syslog-analytics-serverless)
+[![Cost](https://img.shields.io/badge/Monthly%20Cost-~$0-brightgreen)](https://github.com)
 [![Lambda](https://img.shields.io/badge/Lambda-220ms-blue)](https://github.com)
+[![HTTPS](https://img.shields.io/badge/HTTPS-CloudFront-orange)](https://github.com)
 [![Tests](https://img.shields.io/badge/Tests-7%2F7%20pass-success)](https://github.com)
 
 ## 🎯 プロジェクト概要
 
-**24時間分のログ（4,733件）を完全無料で処理・保存**
+**24時間分のログ（4,733件）を HTTPS で安全に可視化**
 
 - **入力**: Syslog CSV を ZIP 圧縮したファイル（24ファイル/日）
 - **処理**: S3 → Lambda（Python）で CSV 解析（220ms/ファイル）
 - **出力**: DynamoDB に時間別統計を保存（24レコード/日）
-- **可視化**: S3 静的ホスティングでダッシュボード（Phase 3 予定）
+- **可視化**: CloudFront（HTTPS）+ S3 でダッシュボード配信 🔒
 
 ### 💰 実績コスト
 
-**月額 $0（無料枠内）** 🎉
+**月額 ~$0.06（ほぼ無料）** 🎉
 
 | サービス | 実績使用量（1日） | 無料枠 | コスト |
 |---------|----------------|--------|-------|
 | **Lambda 実行** | 24回 × 220ms | 100万回/月 | $0 ✅ |
 | **Lambda 実行時間** | 2.7 GB秒 | 400,000 GB秒/月 | $0 ✅ |
 | **S3 PUT** | 24回 | 2,000回/月 | $0 ✅ |
-| **S3 GET** | 24回 | 20,000回/月 | $0 ✅ |
+| **S3 GET** | 24回（Lambda） | 20,000回/月 | $0 ✅ |
 | **DynamoDB Write** | 24 WCU | 200万 WCU/月 | $0 ✅ |
 | **S3 Storage** | 1.2MB | 5GB | $0 ✅ |
+| **CloudFront リクエスト** | 300回/月 | 1,000万回/月 | $0 ✅ |
+| **CloudFront データ転送** | 15MB/月 | 50GB/月（最初の12ヶ月） | $0 ✅ |
+
+**注**: CloudFrontの無料枠（50GB/月）は最初の12ヶ月間。13ヶ月目以降は約 $0.002/月（0.2円）。
 
 詳細は [docs/design.md](docs/design.md) の **10. コスト設計** を参照。
 
@@ -332,18 +337,24 @@ terraform plan
 terraform apply
 ```
 
-**作成されるリソース（15個）:**
+**作成されるリソース（20個）:**
 - S3 バケット × 2（入力用・出力用）
 - Lambda 関数（CSV 解析）
 - DynamoDB テーブル（集計結果）
 - IAM ロール・ポリシー（最小権限）
 - CloudWatch Logs（ログ保存）
+- **CloudFront Distribution（HTTPS配信）** 🆕
+- **CloudFront OAC（Origin Access Control）** 🆕
 
 **出力例:**
 ```
-s3_input_bucket  = "syslog-input-235270183100"
-s3_output_bucket = "syslog-output-235270183100"
+s3_input_bucket             = "syslog-input-235270183100"
+s3_output_bucket            = "syslog-output-235270183100"
+dashboard_url               = "https://d1jq6c6kd4ndds.cloudfront.net"
+cloudfront_distribution_id  = "E3N4KREEZJ01QI"
 ```
+
+> **注意**: CloudFront Distribution の作成には5-10分かかります。
 
 #### 3. サンプルデータを生成
 
@@ -396,27 +407,46 @@ bash scripts/upload_to_s3.sh sample_data $INPUT_BUCKET 2025-12-31
 
 ```bash
 # CloudWatch Logs で Lambda 実行ログを確認
-aws logs tail /aws/lambda/syslog-parser --follow
+aws logs tail /aws/lambda/syslog-analytics-parser-function --follow
 
 # DynamoDB で集計結果を確認
 aws dynamodb query \
   --table-name syslog-hourly-stats \
   --key-condition-expression "log_date = :date" \
-  --expression-attribute-values '{":date":{"S":"2025-12-31"}}'
+  --expression-attribute-values '{":date":{"S":"2026-01-01"}}'
 
 # レコード数確認
 aws dynamodb query \
   --table-name syslog-hourly-stats \
   --key-condition-expression "log_date = :date" \
-  --expression-attribute-values '{":date":{"S":"2025-12-31"}}' \
+  --expression-attribute-values '{":date":{"S":"2026-01-01"}}' \
   --select COUNT
 ```
 
-#### 6. ダッシュボードで可視化（Web閲覧）
+#### 6. ダッシュボードをデプロイ
 
-**前提条件: S3 バケットを Website として公開**
+```bash
+# ダッシュボードをS3にアップロード
+OUTPUT_BUCKET=$(cd terraform && terraform output -raw s3_output_bucket)
+aws s3 cp dashboard/index.html s3://${OUTPUT_BUCKET}/
 
-ダッシュボードは S3 から JSON を取得するため、出力バケットを Website として公開する必要があります。
+# CloudFront URLを取得
+DASHBOARD_URL=$(cd terraform && terraform output -raw dashboard_url)
+echo "🌐 ダッシュボードURL: ${DASHBOARD_URL}"
+```
+
+#### 7. ダッシュボードにアクセス（HTTPS）
+
+ブラウザで CloudFront URL を開く：
+```
+https://d1jq6c6kd4ndds.cloudfront.net
+```
+
+**特徴:**
+- ✅ HTTPS で暗号化通信
+- ✅ CloudFront CDN でグローバル配信
+- ✅ S3 への直接アクセスは不可（OAC で保護）
+- ✅ リアルタイムで統計グラフ表示
 
 ```bash
 # 環境変数を設定（必須）
@@ -1013,14 +1043,16 @@ terraform destroy # データごと削除
 
 ```mermaid
 sequenceDiagram
-    participant User as 👤 User (WSL2)
-    participant S3 as 🪣 S3 Bucket
-    participant Lambda as ⚡ Lambda Function
+    participant User as 👤 User
+    participant CloudFront as 🌐 CloudFront (HTTPS)
+    participant S3Input as 🪣 S3 Input
+    participant Lambda as ⚡ Lambda
     participant DynamoDB as 🗄️ DynamoDB
-    participant CloudWatch as 📊 CloudWatch Logs
+    participant S3Output as 📊 S3 Output
+    participant CloudWatch as 📝 CloudWatch
 
-    User->>S3: 1. Upload ZIP file<br/>(aws s3 cp 10.zip)
-    S3->>Lambda: 2. Trigger S3 Event<br/>(ObjectCreated:Put)
+    User->>S3Input: 1. Upload ZIP file<br/>(aws s3 cp 10.zip)
+    S3Input->>Lambda: 2. Trigger S3 Event<br/>(ObjectCreated:Put)
     
     activate Lambda
     Lambda->>CloudWatch: 3. Log: START RequestId
@@ -1032,20 +1064,22 @@ sequenceDiagram
     Lambda->>Lambda: 8. Filter CRITICAL/WARNING<br/>(if severity in [...])
     Lambda->>Lambda: 9. Aggregate by hour<br/>(Counter by hour)
     
-    Lambda->>DynamoDB: 10. Batch Write Items<br/>(batch_writer)
+    Lambda->>DynamoDB: 10. Write Stats<br/>(batch_writer)
     DynamoDB-->>Lambda: 11. Write Success
     
-    Lambda->>CloudWatch: 12. Log: Processed 198 logs
-    Lambda->>CloudWatch: 13. Log: END RequestId (220ms)
+    Lambda->>S3Output: 12. Put JSON<br/>(data/2026-01-01.json)
+    S3Output-->>Lambda: 13. Upload Success
+    
+    Lambda->>CloudWatch: 14. Log: Processed 198 logs
+    Lambda->>CloudWatch: 15. Log: END RequestId (220ms)
     deactivate Lambda
     
-    User->>DynamoDB: 14. Query Results<br/>(aws dynamodb query)
-    DynamoDB-->>User: 15. Return hourly stats
-    
-    User->>CloudWatch: 16. View Logs<br/>(aws logs tail)
-    CloudWatch-->>User: 17. Return execution logs
+    User->>CloudFront: 16. Access Dashboard<br/>(HTTPS)
+    CloudFront->>S3Output: 17. Get index.html + JSON<br/>(OAC認証)
+    S3Output-->>CloudFront: 18. Return files
+    CloudFront-->>User: 19. Serve Dashboard (HTTPS) 🔒
 
-    Note over User,CloudWatch: 処理時間: 220ms (ウォームスタート)<br/>メモリ: 97MB / 512MB<br/>コスト: $0 (無料枠内)
+    Note over User,CloudWatch: 処理時間: 220ms (Lambda)<br/>配信: CloudFront HTTPS<br/>コスト: ~$0.06/月
 ```
 
 **フロー説明：**

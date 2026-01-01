@@ -1,6 +1,6 @@
 # Dashboard
 
-Chart.js を使った Syslog Analytics ダッシュボード
+Chart.js を使った Syslog Analytics ダッシュボード（**CloudFront HTTPS 配信対応**）
 
 ## 📊 機能
 
@@ -30,65 +30,41 @@ python3 -m http.server 8080
 open http://localhost:8080
 ```
 
-### AWS 認証設定
+### AWS デプロイ（CloudFront + S3）
 
-#### Option 1: Cognito Identity Pool（推奨）
-
-1. **Cognito Identity Pool 作成**
+#### 1. ダッシュボードをS3にアップロード
 
 ```bash
-aws cognito-identity create-identity-pool \
-  --identity-pool-name SyslogAnalyticsDashboard \
-  --allow-unauthenticated-identities \
-  --region ap-northeast-1
+# 環境変数設定
+OUTPUT_BUCKET=$(cd terraform && terraform output -raw s3_output_bucket)
+
+# index.htmlをアップロード
+aws s3 cp dashboard/index.html s3://${OUTPUT_BUCKET}/
 ```
 
-2. **IAM ロール作成**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:Query"
-      ],
-      "Resource": "arn:aws:dynamodb:ap-northeast-1:*:table/syslog-hourly-stats"
-    }
-  ]
-}
-```
-
-3. **index.html の修正**
-
-```javascript
-AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-    IdentityPoolId: 'ap-northeast-1:YOUR_ACTUAL_IDENTITY_POOL_ID'
-});
-```
-
-#### Option 2: ローカル AWS CLI 認証（開発用）
-
-ローカルで `~/.aws/credentials` がある場合、自動で認証されます。
+#### 2. CloudFrontキャッシュクリア（必要に応じて）
 
 ```bash
-aws configure
+DIST_ID=$(cd terraform && terraform output -raw cloudfront_distribution_id)
+aws cloudfront create-invalidation --distribution-id ${DIST_ID} --paths "/*"
 ```
 
-### S3 静的ホスティングでデプロイ
+#### 3. ブラウザでアクセス
 
 ```bash
-# 1. dashboard/ を S3 にアップロード
-aws s3 sync dashboard/ s3://syslog-output-235270183100/ --acl public-read
+# CloudFront URL取得
+DASHBOARD_URL=$(cd terraform && terraform output -raw dashboard_url)
+echo "🌐 ダッシュボード: ${DASHBOARD_URL}"
 
-# 2. S3 静的ホスティング有効化（Terraform で設定済み）
-aws s3 website s3://syslog-output-235270183100/ \
-  --index-document index.html
-
-# 3. ブラウザで開く
-open http://syslog-output-235270183100.s3-website-ap-northeast-1.amazonaws.com
+# ブラウザで開く（HTTPS）
+open ${DASHBOARD_URL}
 ```
+
+**特徴:**
+- ✅ HTTPS で暗号化通信
+- ✅ CloudFront CDN でグローバル配信
+- ✅ S3 OAC でセキュアなアクセス制御
+- ✅ 相対パス（`./data/*.json`）でデータ取得
 
 ## 📁 ファイル構成
 

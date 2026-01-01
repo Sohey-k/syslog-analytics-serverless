@@ -19,7 +19,9 @@ set -e
 
 # デフォルト値
 DATA_DIR=${1:-sample_data}
-BUCKET=${2:-syslog-input-bucket}
+# Terraform output から自動取得（フォールバック: 引数指定可能）
+DEFAULT_BUCKET=$(cd terraform 2>/dev/null && terraform output -raw s3_input_bucket 2>/dev/null || echo "")
+BUCKET=${2:-${DEFAULT_BUCKET}}
 LOG_DATE=${3:-$(date +%Y-%m-%d)}
 
 # 色付き出力

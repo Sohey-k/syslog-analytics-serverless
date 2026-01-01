@@ -42,3 +42,18 @@ output "aws_region" {
   description = "AWS リージョン"
   value       = var.aws_region
 }
+
+output "cloudfront_domain" {
+  description = "CloudFront ディストリビューション URL（HTTPS）"
+  value       = "https://${aws_cloudfront_distribution.output.domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront ディストリビューション ID"
+  value       = aws_cloudfront_distribution.output.id
+}
+
+output "dashboard_url" {
+  description = "📊 ダッシュボードURL（HTTPS）"
+  value       = "https://${aws_cloudfront_distribution.output.domain_name}"
+}
