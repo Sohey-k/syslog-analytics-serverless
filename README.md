@@ -365,12 +365,18 @@ python3 generator/generate.py -o sample_data -d 2025-12-31 -r 2100 -t 0.05
 #### 4. S3 にアップロード
 
 ```bash
-# Terraform の出力値を取得
+# Terraform の出力値を環境変数に設定（必須）
 INPUT_BUCKET=$(cd terraform && terraform output -raw s3_input_bucket)
 
-# 一括アップロード
+# 環境変数が設定されたか確認
+echo "バケット名: $INPUT_BUCKET"
+
+# 一括アップロード（上記2行を実行してから実行してください）
 bash scripts/upload_to_s3.sh sample_data $INPUT_BUCKET 2025-12-31
 ```
+
+> **重要:** `INPUT_BUCKET`を設定せずに実行すると、バケット名が空になりエラーになります。
+> 上記の3つのコマンドを**順番に**実行してください。
 
 **自動処理:**
 1. S3 へアップロード → S3 イベント発火
@@ -413,10 +419,15 @@ aws dynamodb query \
 ダッシュボードは S3 から JSON を取得するため、出力バケットを Website として公開する必要があります。
 
 ```bash
-# S3 Website ホスティングを有効化
+# 環境変数を設定（必須）
 OUTPUT_BUCKET=$(cd terraform && terraform output -raw s3_output_bucket)
 AWS_REGION=$(cd terraform && terraform output -raw aws_region)
 
+# 環境変数が設定されたか確認
+echo "出力バケット名: $OUTPUT_BUCKET"
+echo "リージョン: $AWS_REGION"
+
+# S3 Website ホスティングを有効化
 aws s3 website s3://$OUTPUT_BUCKET \
   --index-document index.html
   
@@ -445,6 +456,8 @@ aws s3 cp dashboard/index.html s3://$OUTPUT_BUCKET/index.html \
 echo "🌐 ダッシュボードURL:"
 echo "http://${OUTPUT_BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
 ```
+
+> **重要:** 上記のコマンドは**順番に全て実行**してください。特に最初の環境変数設定を忘れると、バケット名が空になりエラーになります。
 
 **ブラウザでS3のダッシュボードにアクセス:**
 
