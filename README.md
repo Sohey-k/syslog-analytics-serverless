@@ -364,6 +364,7 @@ cloudfront_distribution_id  = "E3N4KREEZJ01QI"
 cd ..　(一つ上のディレクトリに戻る) 
 python3 generator/generate.py -o sample_data -d 2025-12-31 -r 2100 -t 0.05
 ```
+※-d 2025-12-31 は任意の日付に変更可能
 
 **オプション:**
 - `-o`: 出力ディレクトリ
@@ -385,6 +386,7 @@ echo "バケット名: $INPUT_BUCKET"
 # 一括アップロード（上記2行を実行してから実行してください）
 bash scripts/upload_to_s3.sh sample_data $INPUT_BUCKET 2025-12-31
 ```
+※2025-12-31 は上記で生成した日付と同じにしてください
 
 > **重要:** `INPUT_BUCKET`を設定せずに実行すると、バケット名が空になりエラーになります。
 > 上記の3つのコマンドを**順番に**実行してください。
@@ -415,6 +417,7 @@ aws dynamodb query \
   --key-condition-expression "log_date = :date" \
   --expression-attribute-values '{":date":{"S":"2026-01-01"}}'
 
+
 # レコード数確認
 aws dynamodb query \
   --table-name syslog-hourly-stats \
@@ -422,6 +425,7 @@ aws dynamodb query \
   --expression-attribute-values '{":date":{"S":"2026-01-01"}}' \
   --select COUNT
 ```
+※"S":"2026-01-01" はアップロードした日付に合わせて変更してください
 
 #### 6. ダッシュボードをデプロイ
 
