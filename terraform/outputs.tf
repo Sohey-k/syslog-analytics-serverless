@@ -3,6 +3,16 @@ output "input_bucket_name" {
   value       = aws_s3_bucket.input.id
 }
 
+output "s3_input_bucket" {
+  description = "入力用 S3 バケット名（scripts用）"
+  value       = aws_s3_bucket.input.id
+}
+
+output "s3_output_bucket" {
+  description = "出力用 S3 バケット名（dashboard用）"
+  value       = aws_s3_bucket.output.id
+}
+
 output "dynamodb_table_name" {
   description = "DynamoDB テーブル名"
   value       = aws_dynamodb_table.stats.name

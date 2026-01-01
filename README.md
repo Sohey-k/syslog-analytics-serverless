@@ -351,6 +351,7 @@ s3_output_bucket = "syslog-output-235270183100"
 cd ..
 
 # 24時間分のログを生成（00.zip ～ 23.zip）
+cd ..　(一つ上のディレクトリに戻る) 
 python3 generator/generate.py -o sample_data -d 2025-12-31 -r 2100 -t 0.05
 ```
 
@@ -405,6 +406,53 @@ aws dynamodb query \
   --expression-attribute-values '{":date":{"S":"2025-12-31"}}' \
   --select COUNT
 ```
+
+#### 6. ダッシュボードで可視化（Web閲覧）
+
+**前提条件: S3 バケットを Website として公開**
+
+ダッシュボードは S3 から JSON を取得するため、出力バケットを Website として公開する必要があります。
+
+```bash
+# S3 Website ホスティングを有効化
+OUTPUT_BUCKET=$(cd terraform && terraform output -raw s3_output_bucket)
+
+aws s3 website s3://$OUTPUT_BUCKET \
+  --index-document index.html
+  
+# パブリック読み取り許可（静的ホスティング用）
+aws s3api put-bucket-policy --bucket $OUTPUT_BUCKET --policy '{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::'$OUTPUT_BUCKET'/data/*"
+  }]
+}'
+```
+
+**ローカルでプレビュー:**
+
+```bash
+# ダッシュボードをブラウザで開く
+cd dashboard
+python3 -m http.server 8080
+
+# ブラウザで開く
+# http://localhost:8080
+```
+
+**詳細な設定方法は [dashboard/README.md](dashboard/README.md) を参照してください。**
+
+ダッシュボードでは以下が閲覧できます:
+- 📈 時間別 CRITICAL/WARNING 推移グラフ
+- 🍩 CRITICAL/WARNING 比率ドーナツチャート
+- 📊 時間別合計ログ数の棒グラフ
+- 📊 統計情報（総件数、平均など）
+
+> **注意**: ダッシュボードは Cognito 不要で、S3 の静的 Website エンドポイントから直接 JSON を読み込みます。
+
 
 **期待される結果:**
 ```json
